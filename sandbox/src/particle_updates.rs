@@ -1,4 +1,5 @@
 use rand::random_bool;
+use rand::random_iter;
 
 use crate::particles::Gas;
 use crate::particles::Liquid;
@@ -9,22 +10,36 @@ use crate::particles::Update;
 use crate::sandbox::Handler;
 
 impl Update for Solid {
-    fn update(&self, ha: &mut Handler) {
-        let direc = if ha.here.direction_bias {
-            ha.sandbox.deref().flipflop
+    fn update(&self, handler: &mut Handler) {
+        if !handler.here.awake {
+            if handler.get(0, 1).species.is_empty() {
+                handler.get_mut_here().awake = true;
+            }
+            return;
+        }
+
+        let direc = if handler.here.direction_bias {
+            handler.sandbox.deref().flipflop
         }
         else {
-            -ha.sandbox.deref().flipflop
+            -handler.sandbox.deref().flipflop
         };
-        if ha.get(0, 1).species.is_empty() || ha.get(0, 1).species.is_water() {
-            ha.swap(0, 1);
+        let params = handler.sandbox.deref().particleparams[handler.here.species as usize];
+
+        if handler.get(0, 1).species.is_empty() {
+            handler.swap(0, 1);
         }
-        else if ha.get(direc, 1).species.is_empty() {
-            ha.swap(direc, 1);
+        else if random_bool(params.resistance) {
+            handler.get_mut_here().awake = false;
         }
-        else if ha.get(-direc, 1).species.is_empty() {
-            ha.swap(-direc, 1);
+        else if handler.get(direc, 1).species.is_empty() {
+            handler.swap(direc, 1);
         }
+        else if handler.get(-direc, 1).species.is_empty() {
+            handler.swap(-direc, 1);
+        }
+        handler.get_mut(1, 0).awake = true;
+        handler.get_mut(-1, 0).awake = true;
     }
 }
 
@@ -36,6 +51,8 @@ impl Update for Liquid {
         else {
             -handler.sandbox.deref().flipflop
         };
+        let params = handler.sandbox.deref().particleparams[handler.here.species as usize];
+
         if handler.get(0, 1).species.is_empty() {
             handler.swap(0, 1);
         }
@@ -46,7 +63,7 @@ impl Update for Liquid {
             handler.swap(-direc, 1);
         }
         else {
-            for _ in 0..handler.sandbox.deref().particleparams[ParticleType::Water as usize].spread_velocity {
+            for _ in 0..params.spread_velocity {
                 if handler.get(direc, 0).species.is_empty() || handler.get(direc, 0).species.is_water() {
                     handler.swap(direc, 0);
                     continue;
@@ -58,24 +75,24 @@ impl Update for Liquid {
 }
 
 impl Update for Gas {
-    fn update(&self, ha: &mut Handler) {
+    fn update(&self, handler: &mut Handler) {
         if random_bool(0.01) {
-            *ha.get_mut_here() = Particle::build(ParticleType::Empty);
+            *handler.get_mut_here() = Particle::build(ParticleType::Empty);
         }
-        let direc = if ha.here.direction_bias {
-            ha.sandbox.deref().flipflop
+        let direc = if handler.here.direction_bias {
+            handler.sandbox.deref().flipflop
         }
         else {
-            -ha.sandbox.deref().flipflop
+            -handler.sandbox.deref().flipflop
         };
-        if ha.get(0, -1).species.is_empty() {
-            ha.swap(0, -1);
+        if handler.get(0, -1).species.is_empty() {
+            handler.swap(0, -1);
         }
-        else if ha.get(direc, -1).species.is_empty() {
-            ha.swap(direc, -1);
+        else if handler.get(direc, -1).species.is_empty() {
+            handler.swap(direc, -1);
         }
-        else if ha.get(-direc, -1).species.is_empty() {
-            ha.swap(-direc, -1);
+        else if handler.get(-direc, -1).species.is_empty() {
+            handler.swap(-direc, -1);
         }
     }
 }

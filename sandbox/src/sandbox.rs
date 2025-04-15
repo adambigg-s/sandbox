@@ -60,7 +60,6 @@ pub struct SandBox {
     pub width: usize,
     pub grid: Vec<Particle>,
     pub particleparams: [ParticleParams; ParticleType::EnumLength as usize],
-    pub particle_count: usize,
     pub thread_count: usize,
     pub cluster_size: usize,
     pub chunk_offset: i32,
@@ -74,7 +73,6 @@ impl SandBox {
             width,
             grid: (0..width * height).map(|_| Particle::build(ParticleType::Empty)).collect(),
             particleparams: ParticleParams::build_for_all(),
-            particle_count: usize::default(),
             thread_count: usize::default(),
             cluster_size: usize::default(),
             chunk_offset: i32::default(),
@@ -88,12 +86,15 @@ impl SandBox {
         let chunks = self.generate_columnar_chunks();
         let selfptr = RawPtrMut::build(self as *mut SandBox);
 
+        // two pass processing to mitigate (never can eliminate) data races at
+        // the chunk borders
         let mut handles = Vec::new();
         (0..chunks.len()).step_by(2).map(|idx| chunks[idx]).for_each(|chunk| {
             handles.push(spawn(move || {
                 chunk.process_zig_zag(selfptr);
             }));
         });
+        // first pass join
         handles.into_iter().for_each(|handle| {
             handle.join().unwrap();
         });
@@ -104,6 +105,9 @@ impl SandBox {
                 chunk.process_zig_zag(selfptr);
             }));
         });
+        // second pass join - testing and this conserves >> 99.9999%
+        // of mass; less than one in a million particle is being raced and
+        // overwritten
         handles.into_iter().for_each(|handle| {
             handle.join().unwrap();
         });
@@ -141,9 +145,8 @@ impl SandBox {
         {
             debug_assert!(index < self.width * self.height);
         }
-        if self.grid[index].species.is_empty() {
+        if self.grid[index].species.is_empty() || species.is_empty() {
             self.grid[index] = Particle::build(species);
-            self.particle_count += 1;
         }
     }
 
@@ -168,7 +171,6 @@ impl SandBox {
                 self.grid[index] = Particle::build(ParticleType::Empty);
             });
         });
-        self.particle_count = 0;
     }
 
     fn generate_columnar_chunks(&self) -> Vec<Chunk> {

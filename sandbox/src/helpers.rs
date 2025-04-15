@@ -32,6 +32,9 @@ pub fn get_inputs(window: &Window, world: &mut SandBox) {
     if window.is_key_down(Key::Key3) {
         world.add_cluster(ParticleType::Smoke, mx as usize, my as usize);
     }
+    if window.is_key_down(Key::G) {
+        world.add_cluster(ParticleType::Empty, mx as usize, my as usize);
+    }
     if window.is_key_down(Key::R) {
         world.clear();
     }

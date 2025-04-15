@@ -1,3 +1,5 @@
+/// this is by no means actually a thread-safe pointer, but for this application
+/// it doesn't matter and it is so much faster than the thread-safe alternatives
 pub struct RawPtrMut<T> {
     ptr: *mut T,
 }

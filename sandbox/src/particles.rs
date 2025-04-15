@@ -1,6 +1,8 @@
 use rand::random_bool;
 
 use crate::helpers::color_near;
+use crate::particle_params::sand_params;
+use crate::particle_params::water_params;
 use crate::sandbox::Handler;
 
 pub struct Solid {}
@@ -17,12 +19,14 @@ pub trait Update {
 pub struct ParticleParams {
     pub spread_velocity: usize,
     pub max_fallspeed: usize,
+    pub resistance: f64,
 }
 
 impl ParticleParams {
     pub fn build_for_all() -> [Self; ParticleType::EnumLength as usize] {
         let mut params = [Self::default(); ParticleType::EnumLength as usize];
-        params[ParticleType::Water as usize] = ParticleParams { spread_velocity: 10, max_fallspeed: 10 };
+        params[ParticleType::Sand as usize] = sand_params();
+        params[ParticleType::Water as usize] = water_params();
         params
     }
 }
@@ -85,11 +89,17 @@ pub struct Particle {
     pub species: ParticleType,
     pub color: u32,
     pub direction_bias: bool,
+    pub awake: bool,
 }
 
 impl Particle {
     pub fn build(species: ParticleType) -> Self {
-        Particle { species, color: ParticleType::color(species), direction_bias: random_bool(0.5) }
+        Particle {
+            species,
+            color: ParticleType::color(species),
+            direction_bias: random_bool(0.5),
+            awake: true,
+        }
     }
 
     pub fn behavior(&self) -> Option<Behavior> {
