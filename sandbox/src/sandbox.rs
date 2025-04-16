@@ -1,4 +1,3 @@
-use rand::random_bool;
 use rand::random_range;
 
 use crate::chunks::Chunk;
@@ -21,7 +20,7 @@ impl Handler {
     }
 
     pub fn update(&mut self) {
-        if let Some(behavior) = self.here.behavior() {
+        if let Some(behavior) = self.here.behavior {
             behavior.update(self);
         }
     }
@@ -31,13 +30,18 @@ impl Handler {
         self.sandbox.deref().get(nx, ny)
     }
 
-    pub fn get_mut(&mut self, dx: isize, dy: isize) -> &mut Particle {
+    pub fn get_mut(&mut self, dx: isize, dy: isize) -> Option<&mut Particle> {
         let (nx, ny) = self.relative_index(dx, dy);
         self.sandbox.deref().get_mut(nx, ny)
     }
 
+    pub fn get_mut_unchecked(&mut self, dx: isize, dy: isize) -> &mut Particle {
+        let (nx, ny) = self.relative_index(dx, dy);
+        self.sandbox.deref().get_mut_unchecked(nx, ny)
+    }
+
     pub fn get_mut_here(&mut self) -> &mut Particle {
-        self.sandbox.deref().get_mut(self.x, self.y)
+        self.sandbox.deref().get_mut_unchecked(self.x, self.y)
     }
 
     pub fn swap(&mut self, tx: isize, ty: isize) {
@@ -46,6 +50,7 @@ impl Handler {
         let to = self.sandbox.deref().index(nx, ny);
         self.sandbox.deref().swap(from, to);
         (self.x, self.y) = (nx, ny);
+        self.here = self.sandbox.deref().get(self.x, self.y);
     }
 
     fn relative_index(&self, dx: isize, dy: isize) -> (usize, usize) {
@@ -118,6 +123,21 @@ impl SandBox {
         self.grid.iter().map(|ele| ele.color).collect()
     }
 
+    #[allow(dead_code)]
+    pub fn to_debug(&self) -> Vec<u32> {
+        self.grid
+            .iter()
+            .map(|ele| {
+                if ele.awake {
+                    0xff00ffff
+                }
+                else {
+                    0xff000000
+                }
+            })
+            .collect()
+    }
+
     pub fn get(&self, x: usize, y: usize) -> Particle {
         if !self.inbounds(x, y) {
             return Particle::build(ParticleType::OutOfBounds);
@@ -129,7 +149,18 @@ impl SandBox {
         self.grid[index]
     }
 
-    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut Particle {
+    pub fn get_mut(&mut self, x: usize, y: usize) -> Option<&mut Particle> {
+        if !self.inbounds(x, y) {
+            return None;
+        }
+        let index = self.index(x, y);
+        {
+            debug_assert!(index < self.width * self.height);
+        }
+        Some(&mut self.grid[index])
+    }
+
+    pub fn get_mut_unchecked(&mut self, x: usize, y: usize) -> &mut Particle {
         let index = self.index(x, y);
         {
             debug_assert!(index < self.width * self.height);
@@ -145,7 +176,7 @@ impl SandBox {
         {
             debug_assert!(index < self.width * self.height);
         }
-        if self.grid[index].species.is_empty() || species.is_empty() {
+        if self.grid[index].is_empty() || species == ParticleType::Empty {
             self.grid[index] = Particle::build(species);
         }
     }
@@ -154,7 +185,7 @@ impl SandBox {
         let bounds = (self.cluster_size / 2) as isize;
         (-bounds..=bounds).for_each(|dy| {
             (-bounds..=bounds).for_each(|dx| {
-                if dx * dx + dy * dy <= bounds * bounds && random_bool(0.2) {
+                if dx * dx + dy * dy <= bounds * bounds {
                     self.add_particle(species, x.saturating_add_signed(dx), y.saturating_add_signed(dy));
                 }
             });

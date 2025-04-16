@@ -13,15 +13,16 @@ use minifb::WindowOptions;
 
 use sandbox::SandBox;
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 300;
+const WIDTH: usize = 1920;
+const HEIGHT: usize = 1080;
 
 fn main() {
     unsafe {
-        std::env::set_var("RUST_BACKTRACE", "1");
+        std::env::set_var("RUST_BACKTRACE", "full");
     }
+
     let mut window =
-        Window::new("sandbox", WIDTH, HEIGHT, WindowOptions { scale: Scale::X4, ..Default::default() })
+        Window::new("sandbox", WIDTH, HEIGHT, WindowOptions { scale: Scale::X1, ..Default::default() })
             .expect("failed to grab window handle");
     let mut world = SandBox::build(WIDTH, HEIGHT);
     world.thread_count = 20;
@@ -36,6 +37,9 @@ fn main() {
         window
             .update_with_buffer(&world.to_color(), world.width, world.height)
             .expect("failed to update window");
+        // window
+        //     .update_with_buffer(&world.to_debug(), world.width, world.height)
+        //     .expect("failed to update window");
 
         println!("fps: {:.2}", 1. / time.elapsed().as_secs_f32());
         println!("threads: {}", world.thread_count);

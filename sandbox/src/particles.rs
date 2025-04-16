@@ -2,14 +2,18 @@ use rand::random_bool;
 
 use crate::helpers::color_near;
 use crate::particle_params::sand_params;
+use crate::particle_params::smoke_params;
 use crate::particle_params::water_params;
 use crate::sandbox::Handler;
 
-pub struct Solid {}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Solid;
 
-pub struct Liquid {}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Liquid;
 
-pub struct Gas {}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gas;
 
 pub trait Update {
     fn update(&self, handler: &mut Handler);
@@ -20,6 +24,9 @@ pub struct ParticleParams {
     pub spread_velocity: usize,
     pub max_fallspeed: usize,
     pub resistance: f64,
+    pub volatility: f64,
+    pub vertical_affinity: f64,
+    pub horizontal_affinity: f64,
 }
 
 impl ParticleParams {
@@ -27,10 +34,12 @@ impl ParticleParams {
         let mut params = [Self::default(); ParticleType::EnumLength as usize];
         params[ParticleType::Sand as usize] = sand_params();
         params[ParticleType::Water as usize] = water_params();
+        params[ParticleType::Smoke as usize] = smoke_params();
         params
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Behavior {
     Solid(Solid),
     Liquid(Liquid),
@@ -59,16 +68,14 @@ pub enum ParticleType {
 }
 
 impl ParticleType {
-    pub fn is_empty(self) -> bool {
-        self == Self::Empty
-    }
-
-    pub fn is_sand(self) -> bool {
-        self == Self::Sand
-    }
-
-    pub fn is_water(self) -> bool {
-        self == Self::Water
+    pub fn behavior(&self) -> Option<Behavior> {
+        match self {
+            Self::Sand => Some(Behavior::Solid(Solid)),
+            Self::Water => Some(Behavior::Liquid(Liquid)),
+            Self::Smoke => Some(Behavior::Gas(Gas)),
+            Self::OutOfBounds => Some(Behavior::Solid(Solid)),
+            _ => None,
+        }
     }
 
     fn color(self) -> u32 {
@@ -87,27 +94,49 @@ impl ParticleType {
 #[derive(Clone, Copy, Debug)]
 pub struct Particle {
     pub species: ParticleType,
+    pub behavior: Option<Behavior>,
     pub color: u32,
     pub direction_bias: bool,
     pub awake: bool,
+    pub vx: f32,
+    pub vy: f32,
 }
 
 impl Particle {
     pub fn build(species: ParticleType) -> Self {
         Particle {
             species,
+            behavior: species.behavior(),
             color: ParticleType::color(species),
             direction_bias: random_bool(0.5),
             awake: true,
+            vx: f32::default(),
+            vy: f32::default(),
         }
     }
 
-    pub fn behavior(&self) -> Option<Behavior> {
-        match self.species {
-            ParticleType::Water => Some(Behavior::Liquid(Liquid {})),
-            ParticleType::Sand => Some(Behavior::Solid(Solid {})),
-            ParticleType::Smoke => Some(Behavior::Gas(Gas {})),
-            _ => None,
+    pub fn is_empty(&self) -> bool {
+        self.species == ParticleType::Empty
+    }
+
+    pub fn is_solid(&self) -> bool {
+        if let Some(behavior) = self.behavior {
+            return Behavior::Solid(Solid) == behavior;
         }
+        false
+    }
+
+    pub fn is_liquid(&self) -> bool {
+        if let Some(behavior) = self.behavior {
+            return Behavior::Liquid(Liquid) == behavior;
+        }
+        false
+    }
+
+    pub fn is_gas(&self) -> bool {
+        if let Some(behavior) = self.behavior {
+            return Behavior::Gas(Gas) == behavior;
+        }
+        false
     }
 }
