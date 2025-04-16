@@ -1,82 +1,130 @@
 use rand::random_bool;
 
-use crate::particles::Gas;
-use crate::particles::Liquid;
 use crate::particles::Particle;
 use crate::particles::ParticleType;
-use crate::particles::Solid;
-use crate::particles::Update;
 use crate::sandbox::Handler;
 
-impl Update for Solid {
+pub trait Update {
+    fn update(&self, handler: &mut Handler);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Solid;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Liquid;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gas;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FreeFall;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Behavior {
+    Solid(Solid),
+    Liquid(Liquid),
+    Gas(Gas),
+    FreeFall(FreeFall),
+}
+
+impl Update for Behavior {
     fn update(&self, handler: &mut Handler) {
-        if !handler.here.awake {
-            if handler.get(0, 1).is_empty() {
-                handler.get_mut_here().awake = true;
+        match self {
+            Self::Solid(solid) => solid.update(handler),
+            Self::Liquid(liquid) => liquid.update(handler),
+            Self::Gas(gas) => gas.update(handler),
+            Self::FreeFall(freefall) => freefall.update(handler),
+        }
+    }
+}
+
+impl Update for FreeFall {
+    fn update(&self, h: &mut Handler) {
+        if !h.get(0, 1).is_empty() {
+            h.get_mut_here().behavior = Some(Behavior::Solid(Solid));
+        }
+    }
+}
+
+impl Update for Solid {
+    fn update(&self, h: &mut Handler) {
+        if !h.here.is_awake() {
+            if h.get(0, 1).is_empty() || h.get(0, 1).is_liquid() || h.get(0, 1).is_gas() {
+                h.get_mut_here().awake = true;
+                h.get_mut_here().behavior = Some(Behavior::FreeFall(FreeFall));
             }
-            return;
+            else {
+                return;
+            }
         }
 
-        let direc = if handler.here.direction_bias {
-            handler.sandbox.deref().flipflop
+        let d = if h.here.direction_bias {
+            h.sandbox.deref().flipflop
         }
         else {
-            -handler.sandbox.deref().flipflop
+            -h.sandbox.deref().flipflop
         };
-        let params = handler.sandbox.deref().particleparams[handler.here.species as usize];
-        let mut moved = false;
+        let par = h.sandbox.deref().particleparams[h.here.species as usize];
+        let mut mo = false;
 
-        if handler.get(0, 1).is_empty() || handler.get(0, 1).is_liquid() || handler.get(0, 1).is_gas() {
-            handler.swap(0, 1);
-            moved = true;
+        if h.get(0, 1).is_empty() || h.get(0, 1).is_liquid() || h.get(0, 1).is_gas() {
+            h.swap(0, 1);
+            mo = true;
         }
-        else if random_bool(params.resistance) {
-            handler.get_mut_here().awake = false;
+        else if h.get(d, 1).is_empty() || h.get(d, 1).is_liquid() || h.get(d, 1).is_gas() {
+            h.swap(d, 1);
+            mo = true;
         }
-        else if handler.get(direc, 1).is_empty()
-            || handler.get(direc, 1).is_liquid()
-            || handler.get(direc, 1).is_gas()
-        {
-            handler.swap(direc, 1);
-            moved = true;
+        else if h.get(-d, 1).is_empty() || h.get(-d, 1).is_liquid() || h.get(-d, 1).is_gas() {
+            h.swap(-d, 1);
+            mo = true;
+        }
+        else if random_bool(par.resistance) {
+            h.get_mut_here().awake = false;
         }
 
-        if moved {
-            if let Some(particle) = handler.get_mut(1, 0) {
-                particle.awake = true;
+        if mo {
+            if let Some(p) = h.get_mut(1, 0) {
+                p.awake = true;
             }
-            if let Some(particle) = handler.get_mut(-1, 0) {
-                particle.awake = true;
+            if let Some(p) = h.get_mut(-1, 0) {
+                p.awake = true;
             }
         }
     }
 }
 
 impl Update for Liquid {
-    fn update(&self, handler: &mut Handler) {
-        let direc = if handler.here.direction_bias {
-            handler.sandbox.deref().flipflop
+    fn update(&self, h: &mut Handler) {
+        let d = if h.here.direction_bias {
+            h.sandbox.deref().flipflop
         }
         else {
-            -handler.sandbox.deref().flipflop
+            -h.sandbox.deref().flipflop
         };
-        let params = handler.sandbox.deref().particleparams[handler.here.species as usize];
+        let par = h.sandbox.deref().particleparams[h.here.species as usize];
 
-        if handler.get(0, 1).is_empty() {
-            handler.swap(0, 1);
+        if h.get(0, 1).is_empty() {
+            h.swap(0, 1);
+            return;
         }
-        else if handler.get(direc, 1).is_empty() {
-            handler.swap(direc, 1);
+        for dx in [d, -d] {
+            if h.get(dx, 1).is_empty() || h.get(dx, 1).is_gas() {
+                h.swap(dx, 1);
+                return;
+            }
         }
-        else if handler.get(-direc, 1).is_empty() {
-            handler.swap(-direc, 1);
-        }
-        else {
-            for _ in 0..params.spread_velocity {
-                if handler.get(direc, 0).is_empty() {
-                    handler.swap(direc, 0);
-                    continue;
+        let mut moved = false;
+        for dist in 1..=par.spread_velocity {
+            for dx in [dist as isize * d, -(dist as isize) * d] {
+                if h.get(dx, 0).is_empty() {
+                    h.swap(dx, 0);
+                    moved = true;
+                    break;
                 }
+            }
+            if moved {
                 break;
             }
         }

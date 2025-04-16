@@ -1,10 +1,11 @@
 use rand::random_range;
 
 use crate::chunks::Chunk;
+use crate::helpers::random_coprime;
+use crate::particle_params::ParticleParams;
+use crate::particle_updates::Update;
 use crate::particles::Particle;
-use crate::particles::ParticleParams;
 use crate::particles::ParticleType;
-use crate::particles::Update;
 use crate::thread_ptr::RawPtrMut;
 
 pub struct Handler {
@@ -69,6 +70,9 @@ pub struct SandBox {
     pub cluster_size: usize,
     pub chunk_offset: i32,
     pub flipflop: isize,
+    pub tick: u32,
+    pub color_freq: u32,
+    pub color_shift: u32,
 }
 
 impl SandBox {
@@ -77,18 +81,21 @@ impl SandBox {
             height,
             width,
             grid: (0..width * height).map(|_| Particle::build(ParticleType::Empty)).collect(),
-            particleparams: ParticleParams::build_for_all(),
+            particleparams: ParticleParams::base_params_builder(),
             thread_count: usize::default(),
             cluster_size: usize::default(),
             chunk_offset: i32::default(),
             flipflop: 1,
+            tick: u32::default(),
+            color_freq: u32::default(),
+            color_shift: u32::default(),
         }
     }
 
     pub fn update_par(&mut self) {
         use std::thread::spawn;
 
-        let chunks = self.generate_columnar_chunks();
+        let chunks = Chunk::columnar_chunks(self.height, self.width, self.thread_count, self.chunk_offset);
         let selfptr = RawPtrMut::build(self as *mut SandBox);
 
         // two pass processing to mitigate (never can eliminate) data races at
@@ -96,7 +103,7 @@ impl SandBox {
         let mut handles = Vec::new();
         (0..chunks.len()).step_by(2).map(|idx| chunks[idx]).for_each(|chunk| {
             handles.push(spawn(move || {
-                chunk.process_zig_zag(selfptr);
+                Self::process_zig_zag(chunk, selfptr);
             }));
         });
         // first pass join
@@ -107,7 +114,7 @@ impl SandBox {
         let mut handles = Vec::new();
         (0..chunks.len()).skip(1).step_by(2).map(|idx| chunks[idx]).for_each(|chunk| {
             handles.push(spawn(move || {
-                chunk.process_zig_zag(selfptr);
+                Self::process_zig_zag(chunk, selfptr);
             }));
         });
         // second pass join - testing and this conserves >> 99.9999%
@@ -117,6 +124,8 @@ impl SandBox {
             handle.join().unwrap();
         });
         self.flipflop = -self.flipflop;
+        self.tick += 1;
+        self.color_shift = self.tick / self.color_freq;
     }
 
     pub fn to_color(&self) -> Vec<u32> {
@@ -177,7 +186,7 @@ impl SandBox {
             debug_assert!(index < self.width * self.height);
         }
         if self.grid[index].is_empty() || species == ParticleType::Empty {
-            self.grid[index] = Particle::build(species);
+            self.grid[index] = Particle::build_color(species, self.color_shift);
         }
     }
 
@@ -199,25 +208,9 @@ impl SandBox {
                 {
                     debug_assert!(index < self.width * self.height);
                 }
-                self.grid[index] = Particle::build(ParticleType::Empty);
+                self.grid[index] = Particle::build_color(ParticleType::Empty, self.color_shift);
             });
         });
-    }
-
-    fn generate_columnar_chunks(&self) -> Vec<Chunk> {
-        let chunk_size = self.width / self.thread_count.max(1);
-        let offset = random_range(0..self.chunk_offset) as usize;
-
-        let mut xmin = 0;
-        let mut xmax = chunk_size - offset;
-        let mut chunks = Vec::new();
-        while xmin < self.width {
-            chunks.push(Chunk::build(xmin, xmax, 0, self.height));
-            xmin = xmax;
-            xmax = (xmax + chunk_size).min(self.width);
-        }
-
-        chunks
     }
 
     fn swap(&mut self, from: usize, to: usize) {
@@ -233,5 +226,84 @@ impl SandBox {
 
     fn inbounds(&self, x: usize, y: usize) -> bool {
         x < self.width && y < self.height
+    }
+
+    /// there are 3 methods for processing a chunk each with varying speeds
+    /// and behaviors two are pseudo-random and one is a true random iteration
+    /// basically, the speed ordering is exactly what you would expect and the
+    /// "pretty" ordering is also exactly what you would expect. zig-zag is by far
+    /// the fastest but looks very obviously strictly sequential
+    #[allow(dead_code)]
+    fn process_pcg(chunk: Chunk, ptr: RawPtrMut<SandBox>) {
+        // algorithm is known as pcg rangom pcg-random.org
+        // weird random rectangular region coprime iteration from physics stack exchange
+        let width = chunk.xmax - chunk.xmin;
+        let height = chunk.ymax - chunk.ymin;
+        let area = width * height;
+        let offset = random_range(0..area);
+        let step = random_coprime(area);
+        for index in 0..area {
+            let linear_index = (offset + step * index) % area;
+
+            let x = (linear_index % width) + chunk.xmin;
+            let y = (linear_index / width) + chunk.ymin;
+
+            let mut handler = Handler::build(x, y, ptr);
+            handler.update();
+        }
+    }
+
+    #[allow(dead_code)]
+    #[allow(unreachable_code)]
+    fn process_zig_zag(chunk: Chunk, ptr: RawPtrMut<SandBox>) {
+        // process top to bottom, skipping rows and zig-zagging on x
+        (chunk.ymin..chunk.ymax).step_by(2).for_each(|y| {
+            (chunk.xmin..chunk.xmax).for_each(|x| {
+                let mut handler = Handler::build(x, y, ptr);
+                handler.update();
+            });
+        });
+        (chunk.ymin..chunk.ymax).skip(1).step_by(2).for_each(|y| {
+            (chunk.xmin..chunk.xmax).rev().for_each(|x| {
+                let mut handler = Handler::build(x, y, ptr);
+                handler.update();
+            });
+        });
+
+        return;
+
+        // bottom to top and zig-zagging on x
+        (chunk.ymin..chunk.ymax).rev().for_each(|y| {
+            if y % 2 == 0 {
+                (chunk.xmin..chunk.xmax).for_each(|x| {
+                    let mut handler = Handler::build(x, y, ptr);
+                    handler.update();
+                });
+            }
+            else {
+                (chunk.xmin..chunk.xmax).rev().for_each(|x| {
+                    let mut handler = Handler::build(x, y, ptr);
+                    handler.update();
+                });
+            }
+        });
+
+        panic!("stagger algorithms are mutually exclusive");
+    }
+
+    #[allow(dead_code)]
+    fn process_true_random(chunk: Chunk, ptr: RawPtrMut<SandBox>) {
+        use rand::rng;
+        use rand::seq::SliceRandom;
+
+        // collects every index first and entirely randomizes the iteration
+        let mut rng = rng();
+        let mut indices: Vec<(usize, usize)> =
+            (chunk.ymin..chunk.ymax).flat_map(|y| (chunk.xmin..chunk.xmax).map(move |x| (x, y))).collect();
+        indices.shuffle(&mut rng);
+        indices.iter().for_each(|&(x, y)| {
+            let mut handler = Handler::build(x, y, ptr);
+            handler.update();
+        });
     }
 }

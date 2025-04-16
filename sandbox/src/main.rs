@@ -13,35 +13,40 @@ use minifb::WindowOptions;
 
 use sandbox::SandBox;
 
-const WIDTH: usize = 1920;
-const HEIGHT: usize = 1080;
+const WIDTH: usize = 400;
+const HEIGHT: usize = 300;
 
 fn main() {
     unsafe {
         std::env::set_var("RUST_BACKTRACE", "full");
     }
 
-    let mut window =
-        Window::new("sandbox", WIDTH, HEIGHT, WindowOptions { scale: Scale::X1, ..Default::default() })
-            .expect("failed to grab window handle");
+    let mut window = Window::new(
+        "falling sand sandbox game",
+        WIDTH,
+        HEIGHT,
+        WindowOptions { scale: Scale::X4, ..Default::default() },
+    )
+    .expect("failed to grab window handle");
+
     let mut world = SandBox::build(WIDTH, HEIGHT);
     world.thread_count = 20;
     world.cluster_size = 10;
-    world.chunk_offset = (WIDTH / world.thread_count - 10) as i32;
+    world.chunk_offset = (WIDTH / world.thread_count) as i32;
+    world.color_freq = 5;
 
     while window.is_open() {
         let time = std::time::Instant::now();
 
-        get_inputs(&window, &mut world);
+        get_inputs(&mut window, &mut world);
         world.update_par();
+
         window
             .update_with_buffer(&world.to_color(), world.width, world.height)
             .expect("failed to update window");
-        // window
-        //     .update_with_buffer(&world.to_debug(), world.width, world.height)
-        //     .expect("failed to update window");
 
         println!("fps: {:.2}", 1. / time.elapsed().as_secs_f32());
         println!("threads: {}", world.thread_count);
+        println!("tick: {}", world.tick / world.color_freq);
     }
 }

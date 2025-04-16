@@ -9,7 +9,7 @@ use rand::random_range;
 use crate::particles::ParticleType;
 use crate::sandbox::SandBox;
 
-pub fn get_inputs(window: &Window, world: &mut SandBox) {
+pub fn get_inputs(window: &mut Window, world: &mut SandBox) {
     let (mx, my) = window.get_mouse_pos(MouseMode::Clamp).unwrap();
     if window.get_mouse_down(MouseButton::Left) {
         world.add_particle(ParticleType::Sand, mx as usize, my as usize);
@@ -38,6 +38,10 @@ pub fn get_inputs(window: &Window, world: &mut SandBox) {
     if window.is_key_down(Key::R) {
         world.clear();
     }
+    if window.is_key_down(Key::P) {
+        window.update_with_buffer(&world.to_debug(), world.width, world.height).expect("window update");
+        std::thread::sleep(Duration::from_millis(100));
+    }
     if window.is_key_down(Key::Equal) {
         world.thread_count += 1;
         std::thread::sleep(Duration::from_millis(100));
@@ -54,12 +58,14 @@ pub fn get_inputs(window: &Window, world: &mut SandBox) {
     }
 }
 
-pub fn color_near(red: u8, green: u8, blue: u8, variance: u32) -> u32 {
+pub fn color_near(red: u8, green: u8, blue: u8, randvar: u32, timevar: u32, time: u32) -> u32 {
     use rand::random;
 
     let offset = |base: u8| {
-        let delta = (random::<i8>() % (variance as i8)) as i16;
-        (base as i16 + delta) as u8
+        let delta = (random::<i8>() % (randvar as i8)) as i16;
+        let angle = 2. * 3.14199 * (time as f32 / timevar as f32);
+        let gamma = (angle.sin() * (randvar as f32 / 2.)).round() as i16;
+        (base as i16 + delta + gamma).min(255) as u8
     };
 
     (0xff << 24) | ((offset(red) as u32) << 16) | ((offset(green) as u32) << 8) | (offset(blue) as u32)
