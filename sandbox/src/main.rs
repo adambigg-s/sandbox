@@ -13,8 +13,8 @@ use minifb::WindowOptions;
 
 use sandbox::SandBox;
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 300;
+const WIDTH: usize = 200;
+const HEIGHT: usize = 200;
 
 fn main() {
     unsafe {
@@ -25,7 +25,7 @@ fn main() {
         "falling sand sandbox game",
         WIDTH,
         HEIGHT,
-        WindowOptions { scale: Scale::X4, ..Default::default() },
+        WindowOptions { scale: Scale::X8, ..Default::default() },
     )
     .expect("failed to grab window handle");
 
@@ -33,7 +33,7 @@ fn main() {
     world.thread_count = 20;
     world.cluster_size = 10;
     world.chunk_offset = (WIDTH / world.thread_count) as i32;
-    world.color_freq = 5;
+    world.color_freq = 3;
 
     while window.is_open() {
         let time = std::time::Instant::now();

@@ -1,4 +1,5 @@
 use rand::random_bool;
+use rand::random_range;
 
 use crate::particles::Particle;
 use crate::particles::ParticleType;
@@ -39,10 +40,50 @@ impl Update for Behavior {
     }
 }
 
+// don't look at this yet, barely works and needs to be refactored just haven't
+// gotten to it
 impl Update for FreeFall {
     fn update(&self, h: &mut Handler) {
-        if !h.get(0, 1).is_empty() {
-            h.get_mut_here().behavior = Some(Behavior::Solid(Solid));
+        let par = h.sandbox.deref().particleparams[h.here.species as usize];
+        let particle = h.get_mut_here();
+        particle.vy += 0.01;
+        particle.vx += random_range(-0.1..0.1);
+        particle.vy = particle.vy.max(1.);
+        particle.vy = particle.vy.min(par.max_fallspeed);
+
+        let vx = particle.vx;
+        let vy = particle.vy;
+
+        let steps = f32::max(vx.abs(), vy.abs()) as usize;
+
+        if steps == 0 {
+            return;
+        }
+
+        let dx = vx / steps as f32;
+        let dy = vy / steps as f32;
+
+        let mut fx = 0.0;
+        let mut fy = 0.0;
+
+        for _ in 0..steps {
+            fx += dx;
+            fy += dy;
+
+            let ix = fx.round() as isize;
+            let iy = fy.round() as isize;
+
+            if ix == 0 && iy == 0 {
+                continue;
+            }
+
+            if h.get(ix, iy).is_empty() {
+                h.swap(ix, iy);
+            }
+            else {
+                h.get_mut_here().stop_falling();
+                return;
+            }
         }
     }
 }
@@ -52,7 +93,7 @@ impl Update for Solid {
         if !h.here.is_awake() {
             if h.get(0, 1).is_empty() || h.get(0, 1).is_liquid() || h.get(0, 1).is_gas() {
                 h.get_mut_here().awake = true;
-                h.get_mut_here().behavior = Some(Behavior::FreeFall(FreeFall));
+                h.get_mut_here().freefall();
             }
             else {
                 return;
@@ -70,6 +111,7 @@ impl Update for Solid {
 
         if h.get(0, 1).is_empty() || h.get(0, 1).is_liquid() || h.get(0, 1).is_gas() {
             h.swap(0, 1);
+            h.get_mut_here().freefall();
             mo = true;
         }
         else if h.get(d, 1).is_empty() || h.get(d, 1).is_liquid() || h.get(d, 1).is_gas() {

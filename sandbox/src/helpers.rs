@@ -35,6 +35,12 @@ pub fn get_inputs(window: &mut Window, world: &mut SandBox) {
     if window.is_key_down(Key::G) {
         world.add_cluster(ParticleType::Empty, mx as usize, my as usize);
     }
+    if window.is_key_down(Key::A) {
+        world.add_cluster(ParticleType::Gravel, mx as usize, my as usize);
+    }
+    if window.is_key_down(Key::D) {
+        world.add_cluster(ParticleType::Wood, mx as usize, my as usize);
+    }
     if window.is_key_down(Key::R) {
         world.clear();
     }
@@ -65,7 +71,7 @@ pub fn color_near(red: u8, green: u8, blue: u8, randvar: u32, timevar: u32, time
         let delta = (random::<i8>() % (randvar as i8)) as i16;
         let angle = 2. * 3.14199 * (time as f32 / timevar as f32);
         let gamma = (angle.sin() * (randvar as f32 / 2.)).round() as i16;
-        (base as i16 + delta + gamma).min(255) as u8
+        (base as i16 + delta + gamma).clamp(0, 255) as u8
     };
 
     (0xff << 24) | ((offset(red) as u32) << 16) | ((offset(green) as u32) << 8) | (offset(blue) as u32)

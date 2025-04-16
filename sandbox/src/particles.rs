@@ -78,6 +78,14 @@ impl Particle {
         }
         false
     }
+
+    pub fn freefall(&mut self) {
+        self.behavior = Some(Behavior::FreeFall(FreeFall));
+    }
+
+    pub fn stop_falling(&mut self) {
+        self.behavior = self.species.base_behavior();
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -87,6 +95,8 @@ pub enum ParticleType {
     Water,
     Stone,
     Smoke,
+    Gravel,
+    Wood,
     OutOfBounds,
     EnumLength,
 }
@@ -97,6 +107,7 @@ impl ParticleType {
             Self::Sand => Some(Behavior::Solid(Solid)),
             Self::Water => Some(Behavior::Liquid(Liquid)),
             Self::Smoke => Some(Behavior::Gas(Gas)),
+            Self::Gravel => Some(Behavior::Solid(Solid)),
             Self::OutOfBounds => Some(Behavior::Solid(Solid)),
             _ => None,
         }
@@ -104,11 +115,13 @@ impl ParticleType {
 
     fn color(self, time: u32) -> u32 {
         match self {
-            Self::Empty => color_near(210, 220, 230, 10, 30, time),
-            Self::Sand => color_near(255, 200, 130, 25, 30, time),
-            Self::Water => color_near(166, 214, 214, 15, 30, time),
-            Self::Stone => color_near(190, 190, 200, 30, 30, time),
-            Self::Smoke => color_near(30, 30, 30, 25, 30, time),
+            Self::Empty => color_near(220, 235, 245, 6, 20, time),
+            Self::Sand => color_near(245, 210, 170, 15, 30, time),
+            Self::Water => color_near(180, 225, 235, 15, 30, time),
+            Self::Stone => color_near(190, 190, 200, 15, 35, time),
+            Self::Smoke => color_near(120, 120, 130, 20, 40, time),
+            Self::Gravel => color_near(160, 150, 145, 40, 28, time),
+            Self::Wood => color_near(200, 175, 130, 30, 22, time),
             Self::OutOfBounds => 0xff00ffff,
             _ => 0xff000000,
         }

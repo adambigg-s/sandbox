@@ -256,14 +256,14 @@ impl SandBox {
     #[allow(dead_code)]
     #[allow(unreachable_code)]
     fn process_zig_zag(chunk: Chunk, ptr: RawPtrMut<SandBox>) {
-        // process top to bottom, skipping rows and zig-zagging on x
-        (chunk.ymin..chunk.ymax).step_by(2).for_each(|y| {
+        // process bottom to top, skipping rows and zig-zagging on x
+        (chunk.ymin..chunk.ymax).rev().step_by(2).for_each(|y| {
             (chunk.xmin..chunk.xmax).for_each(|x| {
                 let mut handler = Handler::build(x, y, ptr);
                 handler.update();
             });
         });
-        (chunk.ymin..chunk.ymax).skip(1).step_by(2).for_each(|y| {
+        (chunk.ymin..chunk.ymax).rev().skip(1).step_by(2).for_each(|y| {
             (chunk.xmin..chunk.xmax).rev().for_each(|x| {
                 let mut handler = Handler::build(x, y, ptr);
                 handler.update();
