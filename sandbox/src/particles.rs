@@ -79,7 +79,7 @@ impl Particle {
         false
     }
 
-    pub fn freefall(&mut self) {
+    pub fn begin_falling(&mut self) {
         self.behavior = Some(Behavior::FreeFall(FreeFall));
     }
 
@@ -97,6 +97,7 @@ pub enum ParticleType {
     Smoke,
     Gravel,
     Wood,
+    Oil,
     OutOfBounds,
     EnumLength,
 }
@@ -109,6 +110,7 @@ impl ParticleType {
             Self::Smoke => Some(Behavior::Gas(Gas)),
             Self::Gravel => Some(Behavior::Solid(Solid)),
             Self::OutOfBounds => Some(Behavior::Solid(Solid)),
+            Self::Oil => Some(Behavior::Liquid(Liquid)),
             _ => None,
         }
     }
@@ -122,6 +124,7 @@ impl ParticleType {
             Self::Smoke => color_near(120, 120, 130, 20, 40, time),
             Self::Gravel => color_near(160, 150, 145, 40, 28, time),
             Self::Wood => color_near(200, 175, 130, 30, 22, time),
+            Self::Oil => color_near(100, 50, 50, 10, 20, time),
             Self::OutOfBounds => 0xff00ffff,
             _ => 0xff000000,
         }

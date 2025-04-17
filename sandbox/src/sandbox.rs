@@ -45,6 +45,15 @@ impl Handler {
         self.sandbox.deref().get_mut_unchecked(self.x, self.y)
     }
 
+    pub fn get_params(&mut self, dx: isize, dy: isize) -> ParticleParams {
+        let particle = self.get(dx, dy);
+        self.sandbox.deref().particleparams[particle.species as usize]
+    }
+
+    pub fn get_params_here(&mut self) -> ParticleParams {
+        self.sandbox.deref().particleparams[self.here.species as usize]
+    }
+
     pub fn swap(&mut self, tx: isize, ty: isize) {
         let (nx, ny) = self.relative_index(tx, ty);
         let from = self.sandbox.deref().index(self.x, self.y);

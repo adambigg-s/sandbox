@@ -9,6 +9,42 @@ use rand::random_range;
 use crate::particles::ParticleType;
 use crate::sandbox::SandBox;
 
+pub struct LinearInterpolator {
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
+    pub steps: usize,
+    pub curr: usize,
+}
+
+impl LinearInterpolator {
+    pub fn build(x: usize, y: usize, dx: f32, dy: f32) -> Self {
+        let steps = (dx.abs()).max(dy.abs()).ceil() as usize;
+        LinearInterpolator {
+            x: x as f32,
+            y: y as f32,
+            vx: dx / steps as f32,
+            vy: dy / steps as f32,
+            steps,
+            curr: 0,
+        }
+    }
+
+    pub fn next(&mut self) -> Option<(isize, isize)> {
+        if self.curr >= self.steps {
+            return None;
+        }
+
+        self.curr += 1;
+
+        self.x += self.vx;
+        self.y += self.vy;
+
+        Some((self.x.round() as isize, self.y.round() as isize))
+    }
+}
+
 pub fn get_inputs(window: &mut Window, world: &mut SandBox) {
     let (mx, my) = window.get_mouse_pos(MouseMode::Clamp).unwrap();
     if window.get_mouse_down(MouseButton::Left) {
@@ -40,6 +76,9 @@ pub fn get_inputs(window: &mut Window, world: &mut SandBox) {
     }
     if window.is_key_down(Key::D) {
         world.add_cluster(ParticleType::Wood, mx as usize, my as usize);
+    }
+    if window.is_key_down(Key::O) {
+        world.add_cluster(ParticleType::Oil, mx as usize, my as usize);
     }
     if window.is_key_down(Key::R) {
         world.clear();

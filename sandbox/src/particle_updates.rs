@@ -1,6 +1,6 @@
 use rand::random_bool;
-use rand::random_range;
 
+use crate::helpers::LinearInterpolator;
 use crate::particles::Particle;
 use crate::particles::ParticleType;
 use crate::sandbox::Handler;
@@ -44,93 +44,89 @@ impl Update for Behavior {
 // gotten to it
 impl Update for FreeFall {
     fn update(&self, h: &mut Handler) {
-        let par = h.sandbox.deref().particleparams[h.here.species as usize];
-        let particle = h.get_mut_here();
-        particle.vy += 0.01;
-        particle.vx += random_range(-0.1..0.1);
-        particle.vy = particle.vy.max(1.);
-        particle.vy = particle.vy.min(par.max_fallspeed);
+        let params = h.get_params_here();
+        h.get_mut_here().vy =
+            (h.get_mut_here().vy + params.gravity).clamp(params.minimal_velocity, params.terminal_velocity);
+        let mut interpolater = LinearInterpolator::build(h.x, h.y, h.get_mut_here().vx, h.get_mut_here().vy);
 
-        let vx = particle.vx;
-        let vy = particle.vy;
+        let x0 = h.x as isize;
+        let y0 = h.y as isize;
+        while let Some((nx, ny)) = interpolater.next() {
+            let dx = nx - x0;
+            let dy = ny - y0;
 
-        let steps = f32::max(vx.abs(), vy.abs()) as usize;
-
-        if steps == 0 {
-            return;
-        }
-
-        let dx = vx / steps as f32;
-        let dy = vy / steps as f32;
-
-        let mut fx = 0.0;
-        let mut fy = 0.0;
-
-        for _ in 0..steps {
-            fx += dx;
-            fy += dy;
-
-            let ix = fx.round() as isize;
-            let iy = fy.round() as isize;
-
-            if ix == 0 && iy == 0 {
+            if dx == 0 && dy == 0 {
                 continue;
             }
 
-            if h.get(ix, iy).is_empty() {
-                h.swap(ix, iy);
+            if h.get(dx, dy).is_empty() {
+                h.swap(dx, dy);
+            }
+            else if h.get(dx, dy).is_falling() {
+                h.get_mut_unchecked(dx, dy).vx = h.get_mut_here().vx;
+                h.get_mut_unchecked(dx, dy).vy = h.get_mut_here().vy;
             }
             else {
+                h.get_mut_here().vy = params.minimal_velocity;
                 h.get_mut_here().stop_falling();
-                return;
             }
         }
     }
 }
 
 impl Update for Solid {
-    fn update(&self, h: &mut Handler) {
-        if !h.here.is_awake() {
-            if h.get(0, 1).is_empty() || h.get(0, 1).is_liquid() || h.get(0, 1).is_gas() {
-                h.get_mut_here().awake = true;
-                h.get_mut_here().freefall();
+    fn update(&self, handler: &mut Handler) {
+        if !handler.here.is_awake() {
+            if handler.get(0, 1).is_empty()
+                || handler.get(0, 1).is_liquid()
+                || handler.get(0, 1).is_gas()
+                || handler.get(0, 1).is_falling()
+            {
+                handler.get_mut_here().awake = true;
+                handler.get_mut_here().begin_falling();
             }
             else {
                 return;
             }
         }
 
-        let d = if h.here.direction_bias {
-            h.sandbox.deref().flipflop
+        let direc = if handler.here.direction_bias {
+            handler.sandbox.deref().flipflop
         }
         else {
-            -h.sandbox.deref().flipflop
+            -handler.sandbox.deref().flipflop
         };
-        let par = h.sandbox.deref().particleparams[h.here.species as usize];
-        let mut mo = false;
+        let params = handler.get_params_here();
+        let mut moved = false;
 
-        if h.get(0, 1).is_empty() || h.get(0, 1).is_liquid() || h.get(0, 1).is_gas() {
-            h.swap(0, 1);
-            h.get_mut_here().freefall();
-            mo = true;
+        if handler.get(0, 1).is_empty() && !handler.get(0, 1).is_solid() {
+            handler.swap(0, 1);
+            handler.get_mut_here().begin_falling();
+            moved = true;
         }
-        else if h.get(d, 1).is_empty() || h.get(d, 1).is_liquid() || h.get(d, 1).is_gas() {
-            h.swap(d, 1);
-            mo = true;
+        else if handler.get(direc, 1).is_empty()
+            || handler.get(direc, 1).is_liquid()
+            || handler.get(direc, 1).is_gas()
+        {
+            handler.swap(direc, 1);
+            moved = true;
         }
-        else if h.get(-d, 1).is_empty() || h.get(-d, 1).is_liquid() || h.get(-d, 1).is_gas() {
-            h.swap(-d, 1);
-            mo = true;
+        else if handler.get(-direc, 1).is_empty()
+            || handler.get(-direc, 1).is_liquid()
+            || handler.get(-direc, 1).is_gas()
+        {
+            handler.swap(-direc, 1);
+            moved = true;
         }
-        else if random_bool(par.resistance) {
-            h.get_mut_here().awake = false;
+        else if random_bool(params.resistance) {
+            handler.get_mut_here().awake = false;
         }
 
-        if mo {
-            if let Some(p) = h.get_mut(1, 0) {
+        if moved {
+            if let Some(p) = handler.get_mut(1, 0) {
                 p.awake = true;
             }
-            if let Some(p) = h.get_mut(-1, 0) {
+            if let Some(p) = handler.get_mut(-1, 0) {
                 p.awake = true;
             }
         }
@@ -138,37 +134,46 @@ impl Update for Solid {
 }
 
 impl Update for Liquid {
-    fn update(&self, h: &mut Handler) {
-        let d = if h.here.direction_bias {
-            h.sandbox.deref().flipflop
+    fn update(&self, handler: &mut Handler) {
+        let direc = if handler.here.direction_bias {
+            handler.sandbox.deref().flipflop
         }
         else {
-            -h.sandbox.deref().flipflop
+            -handler.sandbox.deref().flipflop
         };
-        let par = h.sandbox.deref().particleparams[h.here.species as usize];
+        let params = handler.get_params_here();
+        let mut moved = false;
 
-        if h.get(0, 1).is_empty() {
-            h.swap(0, 1);
+        if handler.get(0, 1).is_empty()
+            || handler.get(0, 1).is_gas()
+            || (handler.get(0, 1).is_liquid() && handler.get_params(0, 1).density < params.density)
+        {
+            handler.swap(0, 1);
             return;
         }
-        for dx in [d, -d] {
-            if h.get(dx, 1).is_empty() || h.get(dx, 1).is_gas() {
-                h.swap(dx, 1);
-                return;
-            }
+        else if handler.get(direc, 1).is_empty()
+            || handler.get(direc, 1).is_gas()
+            || (handler.get(direc, 1).is_liquid() && handler.get_params(direc, 1).density < params.density)
+        {
+            handler.swap(direc, 1);
+            return;
         }
-        let mut moved = false;
-        for dist in 1..=par.spread_velocity {
-            for dx in [dist as isize * d, -(dist as isize) * d] {
-                if h.get(dx, 0).is_empty() {
-                    h.swap(dx, 0);
-                    moved = true;
-                    break;
-                }
+
+        loop {
+            if (handler.get(direc, 0).is_empty()
+                || (handler.get(direc, 0).is_liquid()
+                    && handler.get(direc, 0).species != handler.here.species))
+                && (handler.get(-direc, 1).is_liquid() || random_bool(params.viscosity))
+            {
+                handler.swap(direc, 0);
+                moved = true;
+                continue;
             }
-            if moved {
-                break;
-            }
+            break;
+        }
+
+        if !moved && handler.get(0, -1).is_empty() && random_bool(params.fluid_shimmer) {
+            handler.swap(0, -1);
         }
     }
 }
@@ -176,7 +181,7 @@ impl Update for Liquid {
 impl Update for Gas {
     fn update(&self, handler: &mut Handler) {
         let direc = handler.sandbox.deref().flipflop;
-        let params = handler.sandbox.deref().particleparams[handler.here.species as usize];
+        let params = handler.get_params_here();
 
         if random_bool(params.volatility) {
             *handler.get_mut_here() = Particle::build(ParticleType::Empty);
