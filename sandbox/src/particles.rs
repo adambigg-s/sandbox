@@ -18,6 +18,7 @@ pub struct Particle {
     pub vy: f32,
 }
 
+#[allow(dead_code)]
 impl Particle {
     pub fn build(species: ParticleType) -> Self {
         Particle {
@@ -129,7 +130,7 @@ impl ParticleType {
 
     fn color(self, time: u32) -> u32 {
         match self {
-            Self::Empty => color_near(220, 235, 245, 6, 20, time),
+            // Self::Empty => color_near(220, 235, 245, 6, 20, time),
             Self::Sand => color_near(245, 210, 170, 15, 30, time),
             Self::Water => color_near(180, 225, 235, 15, 30, time),
             Self::Stone => color_near(190, 190, 200, 15, 35, time),

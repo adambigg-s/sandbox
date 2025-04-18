@@ -2,6 +2,9 @@ use crate::particles::ParticleType;
 
 #[derive(Default, Clone, Copy)]
 pub struct ParticleParams {
+    /// when using zig-zag as the update algorithm, particles should never be
+    /// permitted to have a terminal velocity of exactly 2. as this interferes
+    /// the update order and causes super upgly artifacts
     pub terminal_velocity: f32,
     pub minimal_velocity: f32,
     pub gravity: f32,
@@ -43,11 +46,13 @@ fn sand_params() -> ParticleParams {
 fn water_params() -> ParticleParams {
     ParticleParams {
         minimal_velocity: 1.,
-        terminal_velocity: 2.,
+        terminal_velocity: 2.5,
         gravity: 0.05,
         fluid_shimmer: 0.1,
         viscosity: 0.85,
         density: 10,
+        speed_to_bounce: 1.5,
+        horizontal_transfer: 0.6,
         ..Default::default()
     }
 }

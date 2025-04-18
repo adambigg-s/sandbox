@@ -92,11 +92,7 @@ impl Update for FreeFall {
 impl Update for Solid {
     fn update(&self, handler: &mut Handler) {
         if !handler.here.is_awake() {
-            if handler.get(0, 1).is_empty()
-                || handler.get(0, 1).is_liquid()
-                || handler.get(0, 1).is_gas()
-                || handler.get(0, 1).is_falling()
-            {
+            if handler.get(0, 1).is_empty() || handler.get(0, 1).is_falling() {
                 handler.get_mut_here().awake = true;
                 handler.get_mut_here().begin_falling();
             }
@@ -114,15 +110,12 @@ impl Update for Solid {
         let params = handler.get_params_here();
         let mut moved = false;
 
-        if handler.get(0, 1).is_empty() && !handler.get(0, 1).is_solid() {
+        if handler.get(0, 1).is_empty() {
             handler.swap(0, 1);
             handler.get_mut_here().begin_falling();
             moved = true;
         }
-        else if handler.get(direc, 1).is_empty()
-            || handler.get(direc, 1).is_liquid()
-            || handler.get(direc, 1).is_gas()
-        {
+        else if handler.get(direc, 1).is_liquid() || handler.get(direc, 1).is_gas() {
             handler.swap(direc, 1);
             moved = true;
         }
@@ -160,22 +153,29 @@ impl Update for Liquid {
         let mut moved = false;
 
         if handler.get(0, 1).is_empty() {
+            handler.swap(0, 1);
             handler.get_mut_here().begin_falling();
+            moved = true;
         }
-
-        if handler.get(0, 1).is_empty()
-            || handler.get(0, 1).is_gas()
+        else if handler.get(0, 1).is_gas()
             || (handler.get(0, 1).is_liquid() && handler.get_params(0, 1).density < params.density)
         {
             handler.swap(0, 1);
-            return;
+            moved = true;
         }
         else if handler.get(direc, 1).is_empty()
             || handler.get(direc, 1).is_gas()
             || (handler.get(direc, 1).is_liquid() && handler.get_params(direc, 1).density < params.density)
         {
             handler.swap(direc, 1);
-            return;
+            moved = true;
+        }
+        else if handler.get(-direc, 1).is_empty()
+            || handler.get(-direc, 1).is_gas()
+            || (handler.get(-direc, 1).is_liquid() && handler.get_params(-direc, 1).density < params.density)
+        {
+            handler.swap(-direc, 1);
+            moved = true;
         }
 
         loop {
@@ -213,3 +213,10 @@ impl Update for Gas {
         }
     }
 }
+
+// if handler.here.vx.abs() + handler.here.vy.abs() < 1. {
+//     let fd = (1. / (handler.here.vx.abs() + handler.here.vy.abs())).round() as u32;
+//     if handler.sandbox.deref().tick % fd != 0 {
+//         return;
+//     }
+// }

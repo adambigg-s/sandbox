@@ -14,7 +14,7 @@ use minifb::WindowOptions;
 use sandbox::SandBox;
 
 const WIDTH: usize = 600;
-const HEIGHT: usize = 400;
+const HEIGHT: usize = 500;
 const FPS: usize = 100;
 
 fn main() {
