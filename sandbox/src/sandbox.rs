@@ -15,6 +15,7 @@ pub struct Handler {
     pub sandbox: RawPtrMut<SandBox>,
 }
 
+#[allow(dead_code)]
 impl Handler {
     pub fn build(x: usize, y: usize, mut sandbox: RawPtrMut<SandBox>) -> Self {
         Handler { x, y, here: sandbox.deref().get(x, y), sandbox }
@@ -24,6 +25,10 @@ impl Handler {
         if let Some(behavior) = self.here.behavior {
             behavior.update(self);
         }
+    }
+
+    pub fn reup_here(&mut self) {
+        self.here = self.sandbox.deref().get(self.x, self.y);
     }
 
     pub fn get(&mut self, dx: isize, dy: isize) -> Particle {
@@ -60,7 +65,7 @@ impl Handler {
         let to = self.sandbox.deref().index(nx, ny);
         self.sandbox.deref().swap(from, to);
         (self.x, self.y) = (nx, ny);
-        self.here = self.sandbox.deref().get(self.x, self.y);
+        self.reup_here();
     }
 
     fn relative_index(&self, dx: isize, dy: isize) -> (usize, usize) {
@@ -195,7 +200,7 @@ impl SandBox {
             debug_assert!(index < self.width * self.height);
         }
         if self.grid[index].is_empty() || species == ParticleType::Empty {
-            self.grid[index] = Particle::build_color(species, self.color_shift);
+            self.grid[index] = Particle::build_color_start_falling(species, self.color_shift);
         }
     }
 

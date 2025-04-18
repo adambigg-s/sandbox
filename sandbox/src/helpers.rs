@@ -9,39 +9,65 @@ use rand::random_range;
 use crate::particles::ParticleType;
 use crate::sandbox::SandBox;
 
-pub struct LinearInterpolator {
-    pub x: f32,
-    pub y: f32,
-    pub vx: f32,
-    pub vy: f32,
-    pub steps: usize,
-    pub curr: usize,
+pub struct LineTracer {
+    x0: isize,
+    y0: isize,
+    x1: isize,
+    y1: isize,
+    dx: isize,
+    dy: isize,
+    sx: isize,
+    sy: isize,
+    err: isize,
+    finished: bool,
 }
 
-impl LinearInterpolator {
-    pub fn build(x: usize, y: usize, dx: f32, dy: f32) -> Self {
-        let steps = (dx.abs()).max(dy.abs()).ceil() as usize;
-        LinearInterpolator {
-            x: x as f32,
-            y: y as f32,
-            vx: dx / steps as f32,
-            vy: dy / steps as f32,
-            steps,
-            curr: 0,
+impl LineTracer {
+    pub fn build(x0: isize, y0: isize, deltax: f32, deltay: f32) -> Self {
+        let x1 = x0 + deltax.round() as isize;
+        let y1 = y0 + deltay.round() as isize;
+        let dx = (x1 - x0).abs();
+        let dy = (y1 - y0).abs();
+        let sx = if x0 < x1 {
+            1
         }
+        else {
+            -1
+        };
+        let sy = if y0 < y1 {
+            1
+        }
+        else {
+            -1
+        };
+        let err = dx - dy;
+
+        LineTracer { x0, y0, x1, y1, dx, dy, sx, sy, err, finished: false }
     }
 
-    pub fn next(&mut self) -> Option<(isize, isize)> {
-        if self.curr >= self.steps {
+    pub fn step(&mut self) -> Option<(isize, isize)> {
+        if self.finished {
             return None;
         }
 
-        self.curr += 1;
+        let point = (self.x0, self.y0);
 
-        self.x += self.vx;
-        self.y += self.vy;
+        if self.x0 == self.x1 && self.y0 == self.y1 {
+            self.finished = true;
+            return Some(point);
+        }
 
-        Some((self.x.round() as isize, self.y.round() as isize))
+        let e2 = 2 * self.err;
+        if e2 > -self.dy {
+            self.err -= self.dy;
+            self.x0 += self.sx;
+        }
+        if e2 < self.dx {
+            self.err += self.dx;
+            self.y0 += self.sy;
+        }
+
+        Some(point)
     }
 }
 

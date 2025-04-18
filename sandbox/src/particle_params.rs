@@ -12,6 +12,8 @@ pub struct ParticleParams {
     pub fluid_shimmer: f64,
     pub viscosity: f64,
     pub density: usize,
+    pub speed_to_bounce: f32,
+    pub horizontal_transfer: f32,
 }
 
 impl ParticleParams {
@@ -28,16 +30,26 @@ impl ParticleParams {
 
 fn sand_params() -> ParticleParams {
     ParticleParams {
-        gravity: 0.1,
         minimal_velocity: 1.,
-        resistance: 0.05,
-        terminal_velocity: 3.,
+        terminal_velocity: 4.,
+        gravity: 0.05,
+        resistance: 0.2,
+        speed_to_bounce: 1.5,
+        horizontal_transfer: 0.6,
         ..Default::default()
     }
 }
 
 fn water_params() -> ParticleParams {
-    ParticleParams { fluid_shimmer: 0.1, viscosity: 0.7, density: 10, ..Default::default() }
+    ParticleParams {
+        minimal_velocity: 1.,
+        terminal_velocity: 2.,
+        gravity: 0.05,
+        fluid_shimmer: 0.1,
+        viscosity: 0.85,
+        density: 10,
+        ..Default::default()
+    }
 }
 
 fn smoke_params() -> ParticleParams {
@@ -50,9 +62,15 @@ fn smoke_params() -> ParticleParams {
 }
 
 fn gravel_params() -> ParticleParams {
-    ParticleParams { resistance: 0.5, terminal_velocity: 3., ..Default::default() }
+    ParticleParams {
+        minimal_velocity: 1.,
+        terminal_velocity: 4.,
+        gravity: 0.1,
+        resistance: 0.8,
+        ..Default::default()
+    }
 }
 
 fn oil_params() -> ParticleParams {
-    ParticleParams { fluid_shimmer: 0.05, viscosity: 0., density: 1, ..Default::default() }
+    ParticleParams { fluid_shimmer: 0.05, viscosity: 0.3, density: 1, ..Default::default() }
 }

@@ -1,6 +1,7 @@
 use rand::random_bool;
+use rand::random_range;
 
-use crate::helpers::LinearInterpolator;
+use crate::helpers::LineTracer;
 use crate::particles::Particle;
 use crate::particles::ParticleType;
 use crate::sandbox::Handler;
@@ -40,18 +41,24 @@ impl Update for Behavior {
     }
 }
 
-// don't look at this yet, barely works and needs to be refactored just haven't
-// gotten to it
 impl Update for FreeFall {
-    fn update(&self, h: &mut Handler) {
-        let params = h.get_params_here();
-        h.get_mut_here().vy =
-            (h.get_mut_here().vy + params.gravity).clamp(params.minimal_velocity, params.terminal_velocity);
-        let mut interpolater = LinearInterpolator::build(h.x, h.y, h.get_mut_here().vx, h.get_mut_here().vy);
+    fn update(&self, handler: &mut Handler) {
+        let direc = if handler.here.direction_bias {
+            handler.sandbox.deref().flipflop
+        }
+        else {
+            -handler.sandbox.deref().flipflop
+        };
+        let params = handler.get_params_here();
+        handler.get_mut_here().vy = (handler.get_mut_here().vy + params.gravity)
+            .clamp(-params.terminal_velocity, params.terminal_velocity);
+        handler.reup_here();
 
-        let x0 = h.x as isize;
-        let y0 = h.y as isize;
-        while let Some((nx, ny)) = interpolater.next() {
+        let x0 = handler.x as isize;
+        let y0 = handler.y as isize;
+        let mut linetrace = LineTracer::build(x0, y0, handler.here.vx, handler.here.vy);
+        let mut moved = false;
+        while let Some((nx, ny)) = linetrace.step() {
             let dx = nx - x0;
             let dy = ny - y0;
 
@@ -59,17 +66,25 @@ impl Update for FreeFall {
                 continue;
             }
 
-            if h.get(dx, dy).is_empty() {
-                h.swap(dx, dy);
+            if handler.get(dx, dy).is_empty() {
+                handler.swap(dx, dy);
+                moved = true;
             }
-            else if h.get(dx, dy).is_falling() {
-                h.get_mut_unchecked(dx, dy).vx = h.get_mut_here().vx;
-                h.get_mut_unchecked(dx, dy).vy = h.get_mut_here().vy;
+            else if handler.get(dx, dy).is_falling() {
+                handler.get_mut_unchecked(dx, dy).vx = handler.here.vx;
+                handler.get_mut_unchecked(dx, dy).vy = handler.here.vy;
+                moved = true;
             }
-            else {
-                h.get_mut_here().vy = params.minimal_velocity;
-                h.get_mut_here().stop_falling();
+            else if handler.here.vy.abs() > params.speed_to_bounce {
+                handler.get_mut_here().vx =
+                    handler.here.vy * direc as f32 * params.horizontal_transfer * random_range(0.0..1.0);
+                handler.get_mut_here().vy = params.minimal_velocity;
             }
+        }
+        if !moved {
+            handler.get_mut_here().vx = 0.;
+            handler.get_mut_here().vy = params.minimal_velocity;
+            handler.get_mut_here().stop_falling();
         }
     }
 }
@@ -143,6 +158,10 @@ impl Update for Liquid {
         };
         let params = handler.get_params_here();
         let mut moved = false;
+
+        if handler.get(0, 1).is_empty() {
+            handler.get_mut_here().begin_falling();
+        }
 
         if handler.get(0, 1).is_empty()
             || handler.get(0, 1).is_gas()

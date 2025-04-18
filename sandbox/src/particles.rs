@@ -43,6 +43,18 @@ impl Particle {
         }
     }
 
+    pub fn build_color_start_falling(species: ParticleType, time: u32) -> Self {
+        Particle {
+            species,
+            behavior: Some(Behavior::FreeFall(FreeFall)),
+            color: ParticleType::color(species, time),
+            direction_bias: random_bool(0.5),
+            awake: true,
+            vx: f32::default(),
+            vy: f32::default(),
+        }
+    }
+
     pub fn is_awake(&self) -> bool {
         self.awake
     }
