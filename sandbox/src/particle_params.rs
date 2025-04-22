@@ -77,5 +77,15 @@ fn gravel_params() -> ParticleParams {
 }
 
 fn oil_params() -> ParticleParams {
-    ParticleParams { fluid_shimmer: 0.05, viscosity: 0.3, density: 1, ..Default::default() }
+    ParticleParams {
+        minimal_velocity: 1.,
+        terminal_velocity: 1.5,
+        gravity: 0.01,
+        fluid_shimmer: 0.05,
+        viscosity: 0.1,
+        density: 1,
+        speed_to_bounce: 1.5,
+        horizontal_transfer: 0.6,
+        ..Default::default()
+    }
 }

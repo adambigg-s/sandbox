@@ -178,17 +178,19 @@ impl Update for Liquid {
             moved = true;
         }
 
-        loop {
-            if (handler.get(direc, 0).is_empty()
-                || (handler.get(direc, 0).is_liquid()
-                    && handler.get(direc, 0).species != handler.here.species))
-                && (handler.get(-direc, 1).is_liquid() || random_bool(params.viscosity))
-            {
-                handler.swap(direc, 0);
-                moved = true;
-                continue;
+        if !moved {
+            loop {
+                if (handler.get(direc, 0).is_empty()
+                    || (handler.get(direc, 0).is_liquid()
+                        && handler.get(direc, 0).species != handler.here.species))
+                    && (handler.get(-direc, 1).is_liquid() || random_bool(params.viscosity))
+                {
+                    handler.swap(direc, 0);
+                    moved = true;
+                    continue;
+                }
+                break;
             }
-            break;
         }
 
         if !moved && handler.get(0, -1).is_empty() && random_bool(params.fluid_shimmer) {
